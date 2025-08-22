@@ -205,10 +205,11 @@ class HeartflowPlugin(star.Star):
         # 获取当前对话的人格系统提示词，让模型了解大参数LLM的角色设定
         original_persona_prompt = await self._get_persona_system_prompt(event)
         logger.debug(f"小参数模型获取原始人格提示词: {'有' if original_persona_prompt else '无'} | 长度: {len(original_persona_prompt) if original_persona_prompt else 0}")
-        
+
         # 获取或创建精简版系统提示词
         persona_system_prompt = await self._get_or_create_summarized_system_prompt(event, original_persona_prompt)
         logger.debug(f"小参数模型使用精简人格提示词: {'有' if persona_system_prompt else '无'} | 长度: {len(persona_system_prompt) if persona_system_prompt else 0}")
+        logger.debug(f"精简人格提示词:{persona_system_prompt}")
 
         # 构建判断上下文
         chat_context = await self._build_chat_context(event)
