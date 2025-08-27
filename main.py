@@ -325,7 +325,7 @@ class HeartflowPlugin(star.Star):
                 try:
                     logger.debug(f"小参数模型判断尝试 {attempt + 1}/{max_retries}")
 
-                    if attempt == max_retries - 1 & self.judge_backup_provider_name:
+                    if attempt == max_retries - 1 and self.judge_backup_provider_name:
                         logger.debug(f"小参数模型判断最后一次尝试 {attempt + 1}/{max_retries} ，尝试使用备用模型判断")
                         llm_response = await judge_backup_provider.text_chat(
                             prompt=complete_judge_prompt,
