@@ -47,6 +47,8 @@ class HeartflowPlugin(star.Star):
 
         # 判断模型配置
         self.judge_provider_name = self.config.get("judge_provider_name", "")
+        # 备用模型
+        self.judge_backup_provider_name = self.config.get("judge_backup_provider_name", "")
 
         # 心流参数配置
         self.reply_threshold = self.config.get("reply_threshold", 0.6)
@@ -199,6 +201,20 @@ class HeartflowPlugin(star.Star):
             logger.error(f"获取提供商失败: {e}")
             return JudgeResult(should_reply=False, reasoning=f"获取提供商失败: {str(e)}")
 
+        # 如果配置了备用模型
+        backup_retries = 0
+        judge_backup_provider = None
+        if self.judge_backup_provider_name:
+            try:
+                judge_backup_provider = self.context.get_provider_by_id(self.judge_backup_provider_name)
+                if not judge_backup_provider:
+                    logger.warning(f"未找到备用提供商: {self.judge_backup_provider_name}")
+                    return JudgeResult(should_reply=False, reasoning=f"备用提供商不存在: {self.judge_provider_name}")
+                backup_retries = 1
+            except Exception as e:
+                logger.error(f"获取备用提供商失败: {e}")
+                return JudgeResult(should_reply=False, reasoning=f"获取备用提供商失败: {str(e)}")
+
         # 获取群聊状态
         chat_state = self._get_chat_state(event.unified_msg_origin)
 
@@ -209,7 +225,6 @@ class HeartflowPlugin(star.Star):
         # 获取或创建精简版系统提示词
         persona_system_prompt = await self._get_or_create_summarized_system_prompt(event, original_persona_prompt)
         logger.debug(f"小参数模型使用精简人格提示词: {'有' if persona_system_prompt else '无'} | 长度: {len(persona_system_prompt) if persona_system_prompt else 0}")
-        logger.debug(f"精简人格提示词:{persona_system_prompt}")
 
         # 构建判断上下文
         chat_context = await self._build_chat_context(event)
@@ -299,20 +314,27 @@ class HeartflowPlugin(star.Star):
             complete_judge_prompt += judge_prompt
 
             # 重试机制：使用配置的重试次数
-            max_retries = self.judge_max_retries + 1  # 配置的次数+原始尝试=总尝试次数
+            max_retries = self.judge_max_retries + 1 + backup_retries  # 配置的次数+原始尝试+备用模型次数=总尝试次数
             
-            # 如果配置的重试次数为0，只尝试一次
+            # 如果配置的重试次数为0，主模型只尝试一次，备用模型尝试一次
             if self.judge_max_retries == 0:
-                max_retries = 1
+                max_retries = 1 + backup_retries
+
             
             for attempt in range(max_retries):
                 try:
                     logger.debug(f"小参数模型判断尝试 {attempt + 1}/{max_retries}")
-                    
-                    llm_response = await judge_provider.text_chat(
-                        prompt=complete_judge_prompt,
-                        contexts=recent_contexts  # 传入最近的对话历史
-                    )
+
+                    if attempt == max_retries - 1 & self.judge_backup_provider_name:
+                        llm_response = await judge_backup_provider.text_chat(
+                            prompt=complete_judge_prompt,
+                            contexts=recent_contexts  # 传入最近的对话历史
+                        )
+                    else:
+                        llm_response = await judge_provider.text_chat(
+                            prompt=complete_judge_prompt,
+                            contexts=recent_contexts  # 传入最近的对话历史
+                        )
 
                     content = llm_response.completion_text.strip()
                     logger.debug(f"小参数模型原始返回内容: {content[:200]}...")
