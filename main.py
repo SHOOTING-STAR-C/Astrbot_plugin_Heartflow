@@ -386,7 +386,7 @@ class HeartflowPlugin(star.Star):
                     logger.warning(f"小参数模型返回JSON解析失败 (尝试 {attempt + 1}/{max_retries}): {str(e)}")
                     logger.warning(f"无法解析的内容: {content[:500]}...")
                 except Exception as e:
-                    logger.error(f"小参数模型判断失败 (尝试 {attempt + 1}/{max_retries}): {str(e)}")
+                    logger.error(f"小参数模型判断失败 (尝试 {attempt + 1}/{max_retries}): {str(e)[:500]}")
                     
                     if attempt == max_retries - 1:
                         # 最后一次尝试失败，返回失败结果
